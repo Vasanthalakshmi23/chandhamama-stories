@@ -10,19 +10,120 @@ from fastapi.staticfiles import StaticFiles
 import psycopg2
 import psycopg2.extras
 
-DSN = "host=/home/surya/pg_data port=5433 dbname=chandamama user=surya"
-BASE_DIR = Path("/home/surya/chandamama-kathalu-dataset/by-year")
+DEFAULT_DSN = "host=/home/surya/pg_data port=5433 dbname=chandamama user=surya"
+BASE_DIR = Path(__file__).resolve().parent / "by-year"
 
 app = FastAPI(title="Chandamama Kathalu API", version="1.0.0")
+
+
+def get_connection_dsn() -> str:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    host = os.getenv("PGHOST", "/home/surya/pg_data")
+    port = os.getenv("PGPORT", "5433")
+    dbname = os.getenv("PGDATABASE", "chandamama")
+    user = os.getenv("PGUSER", "surya")
+    password = os.getenv("PGPASSWORD")
+
+    if password:
+        return f"host={host} port={port} dbname={dbname} user={user} password={password}"
+    return f"host={host} port={port} dbname={dbname} user={user}"
 
 API_KEYS = {"demo-key": "Demo User"}
 
 def get_db():
-    conn = psycopg2.connect(DSN)
+    conn = psycopg2.connect(get_connection_dsn())
     try:
         yield conn
     finally:
         conn.close()
+
+
+def ensure_schema(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stories (
+                id SERIAL PRIMARY KEY,
+                year INTEGER NOT NULL,
+                month TEXT NOT NULL,
+                story_number INTEGER NOT NULL,
+                folder_name TEXT NOT NULL UNIQUE
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS pages (
+                id SERIAL PRIMARY KEY,
+                story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+                page_number INTEGER NOT NULL,
+                file_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                content_tsv TSVECTOR
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pages_story_id ON pages(story_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_stories_year_month ON stories(year, month)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pages_content_tsv ON pages USING GIN (content_tsv)")
+        cur.execute("ALTER TABLE pages ADD COLUMN IF NOT EXISTS content_tsv TSVECTOR")
+    conn.commit()
+
+
+def seed_dataset_if_needed(conn) -> None:
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM stories")
+        story_count = cur.fetchone()[0]
+
+    if story_count > 0:
+        return
+
+    if not BASE_DIR.exists():
+        return
+
+    story_dirs = []
+    for item in sorted(BASE_DIR.iterdir()):
+        if not item.is_dir():
+            continue
+        match = re.match(r"^(\d{4})_([a-z]{3})_story_(\d+)$", item.name)
+        if match:
+            year = int(match.group(1))
+            month = match.group(2)
+            story_number = int(match.group(3))
+            story_dirs.append((item, year, month, story_number))
+
+    with conn.cursor() as cur:
+        for folder, year, month, story_number in story_dirs:
+            cur.execute(
+                "INSERT INTO stories (year, month, story_number, folder_name) VALUES (%s, %s, %s, %s) RETURNING id",
+                (year, month, story_number, folder.name),
+            )
+            story_id = cur.fetchone()[0]
+
+            for page_file in sorted(folder.glob("page_*_corrected.txt")):
+                page_match = re.search(r"page_(\d+)", page_file.name)
+                page_number = int(page_match.group(1)) if page_match else 0
+                content = page_file.read_text(encoding="utf-8", errors="ignore")
+                cur.execute(
+                    """
+                    INSERT INTO pages (story_id, page_number, file_name, content, content_tsv)
+                    VALUES (%s, %s, %s, %s, to_tsvector('simple', %s))
+                    """,
+                    (story_id, page_number, page_file.name, content, content),
+                )
+    conn.commit()
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    try:
+        conn = psycopg2.connect(get_connection_dsn())
+        try:
+            ensure_schema(conn)
+            seed_dataset_if_needed(conn)
+        finally:
+            conn.close()
+    except Exception as exc:
+        raise RuntimeError(f"Database initialization failed: {exc}") from exc
 
 def verify_api_key(api_key: str = Query(None, description="API key for authentication")):
     if api_key and api_key in API_KEYS:
