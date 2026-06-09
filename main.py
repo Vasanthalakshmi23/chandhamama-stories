@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 import psycopg2
 import psycopg2.extras
 
-DEFAULT_DSN = "host=/home/surya/pg_data port=5433 dbname=chandamama user=surya"
+DEFAULT_DSN = None
 BASE_DIR = Path(__file__).resolve().parent / "by-year"
 
 app = FastAPI(title="Chandamama Kathalu API", version="1.0.0")
@@ -18,8 +18,13 @@ app = FastAPI(title="Chandamama Kathalu API", version="1.0.0")
 
 def get_connection_dsn() -> str:
     database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return database_url
+
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set"
+        )
+
+    return database_url
 
     host = os.getenv("PGHOST", "/home/surya/pg_data")
     port = os.getenv("PGPORT", "5433")
@@ -133,14 +138,12 @@ def verify_api_key(api_key: str = Query(None, description="API key for authentic
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-@app.get("/api/search", response_class=JSONResponse)
-def search(
-    q: str = Query(..., min_length=1, description="Search query"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    api_key: str = Depends(verify_api_key),
-    db=Depends(get_db),
-):
+@app.get("/api/download-database")
+def download_database():
+    raise HTTPException(
+        status_code=501,
+        detail="Database export is disabled on Render"
+    )
     offset = (page - 1) * per_page
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
