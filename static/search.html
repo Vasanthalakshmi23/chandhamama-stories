@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Chandamama Kathalu</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        nav { background: #1a1a2e; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        nav a { color: #eee; text-decoration: none; margin-right: 1.5rem; font-size: 0.95rem; }
+        nav a:hover { color: #e94560; }
+        nav .brand { font-size: 1.3rem; font-weight: 700; color: #e94560; }
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.6rem 1.2rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; cursor: pointer; border: none; }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-primary:hover { background: #d63851; }
+        .btn-secondary { background: #16213e; color: white; }
+        .btn-secondary:hover { background: #1a1a2e; }
+        .btn-outline { background: transparent; border: 2px solid #e94560; color: #e94560; }
+        .btn-outline:hover { background: #e94560; color: white; }
+        input, select { padding: 0.6rem 1rem; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; width: 100%; }
+        input:focus { outline: none; border-color: #e94560; }
+        .pagination { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; }
+        .pagination a, .pagination span { padding: 0.5rem 0.8rem; border-radius: 6px; text-decoration: none; }
+        .pagination a { background: #eee; color: #333; }
+        .pagination a:hover { background: #ddd; }
+        .pagination .active { background: #e94560; color: white; }
+        .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; background: #eee; }
+        mark { background: #ffe066; padding: 0 2px; }
+        .search-box { display: flex; gap: 0.5rem; }
+        .search-box input { flex: 1; }
+        .search-box button { flex-shrink: 0; }
+        .footer { text-align: center; padding: 2rem; color: #888; font-size: 0.85rem; }
+        .alert { background: #fff3cd; border: 1px solid #ffeeba; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        @media (max-width: 768px) {
+            nav { flex-direction: column; gap: 0.5rem; }
+        }
+        .spin { display: inline-block; width: 1.5rem; height: 1.5rem; border: 3px solid #eee; border-top-color: #e94560; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .flex { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div>
+            <a href="/" class="brand">చందమామ కథలు</a>
+            <a href="/">Home</a>
+            <a href="/search">Search</a>
+        </div>
+        <div class="flex" style="gap:0.5rem">
+            <a href="/api/download-all" class="btn btn-secondary" style="font-size:0.8rem;padding:0.4rem 0.8rem">Download All</a>
+            <a href="/api/download-database" class="btn btn-outline" style="font-size:0.8rem;padding:0.4rem 0.8rem">Download DB</a>
+        </div>
+    </nav>
+    <div class="container">
+        <h2 style="margin-bottom:1rem">Search Telugu Stories</h2>
+
+        <div class="search-box" style="margin-bottom:1.5rem">
+            <input type="text" id="searchInput" placeholder="Enter a word or phrase in Telugu..." onkeydown="if(event.key==='Enter')doSearch()">
+            <button class="btn btn-primary" onclick="doSearch()">Search</button>
+        </div>
+
+        <div id="stats" style="margin-bottom:1rem"></div>
+        <div id="results"></div>
+        <div id="loading" style="text-align:center;padding:3rem;display:none"><div class="spin"></div></div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+    <div class="footer">Chandamama Kathalu Dataset &mdash; Search and Browse</div>
+
+    <script>
+    let currentPage = 1;
+    let currentQuery = '';
+
+    async function doSearch(page) {
+        currentPage = page || 1;
+        currentQuery = document.getElementById('searchInput').value.trim();
+        if (!currentQuery) return;
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('pagination').innerHTML = '';
+        document.getElementById('stats').textContent = '';
+
+        const res = await fetch('/api/search?q='+encodeURIComponent(currentQuery)+'&page='+currentPage+'&per_page=20&api_key=demo-key');
+        if (!res.ok) { alert('Search failed'); document.getElementById('loading').style.display = 'none'; return; }
+        const data = await res.json();
+        document.getElementById('loading').style.display = 'none';
+
+        document.getElementById('stats').textContent = 'Found '+data.total+' results for "'+data.query+'"';
+
+        const div = document.getElementById('results');
+        if (data.results.length === 0) {
+            div.innerHTML = '<div class="alert">No results found. Try a different search term.</div>';
+            return;
+        }
+
+        div.innerHTML = data.results.map(r => {
+            return '<div class="card">'+
+                '<div class="flex" style="margin-bottom:0.5rem">'+
+                '<strong><a href="/story/'+r.story_id+'" style="color:#e94560">'+r.folder_name+'</a></strong>'+
+                '<span class="badge">Page '+r.page_number+'</span>'+
+                '<span class="badge">'+r.year+'</span>'+
+                '</div>'+
+                '<div style="font-size:1.1rem;line-height:1.8;max-height:150px;overflow-y:auto;background:#fafafa;padding:0.8rem;border-radius:6px;font-family:\'Noto Sans Telugu\',sans-serif">'+
+                r.highlighted_content+
+                '</div></div>';
+        }).join('');
+
+        const pag = document.getElementById('pagination');
+        pag.innerHTML = '';
+        if (currentPage > 1) pag.innerHTML += '<a href="#" onclick="doSearch('+(currentPage-1)+');return false">Prev</a>';
+        for (let p = 1; p <= data.total_pages; p++) {
+            if (p === currentPage) pag.innerHTML += '<span class="active">'+p+'</span>';
+            else if (p <= 3 || p > data.total_pages - 3 || Math.abs(p - currentPage) <= 2)
+                pag.innerHTML += '<a href="#" onclick="doSearch('+p+');return false">'+p+'</a>';
+        }
+        if (currentPage < data.total_pages) pag.innerHTML += '<a href="#" onclick="doSearch('+(currentPage+1)+');return false">Next</a>';
+    }
+    </script>
+</body>
+</html>

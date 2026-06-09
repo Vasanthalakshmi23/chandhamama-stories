@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story - Chandamama Kathalu</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        nav { background: #1a1a2e; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        nav a { color: #eee; text-decoration: none; margin-right: 1.5rem; font-size: 0.95rem; }
+        nav a:hover { color: #e94560; }
+        nav .brand { font-size: 1.3rem; font-weight: 700; color: #e94560; }
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1rem; }
+        .btn { display: inline-block; padding: 0.6rem 1.2rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; cursor: pointer; border: none; }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-primary:hover { background: #d63851; }
+        .btn-secondary { background: #16213e; color: white; }
+        .btn-secondary:hover { background: #1a1a2e; }
+        .btn-outline { background: transparent; border: 2px solid #e94560; color: #e94560; }
+        .btn-outline:hover { background: #e94560; color: white; }
+        .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; background: #eee; }
+        .footer { text-align: center; padding: 2rem; color: #888; font-size: 0.85rem; }
+        .flex { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        @media (max-width: 768px) {
+            nav { flex-direction: column; gap: 0.5rem; }
+        }
+        .spin { display: inline-block; width: 1.5rem; height: 1.5rem; border: 3px solid #eee; border-top-color: #e94560; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <nav>
+        <div>
+            <a href="/" class="brand">చందమామ కథలు</a>
+            <a href="/">Home</a>
+            <a href="/search">Search</a>
+        </div>
+    </nav>
+    <div class="container">
+        <div id="storyHeader" style="margin-bottom:1rem">
+            <a href="/" style="color:#e94560">&larr; Back to Browse</a>
+        </div>
+        <div id="storyContent">
+            <div style="text-align:center;padding:3rem"><div class="spin"></div></div>
+        </div>
+    </div>
+    <div class="footer">Chandamama Kathalu Dataset &mdash; Search and Browse</div>
+
+    <script>
+    async function loadStory() {
+        const storyId = {{story_id}};
+        const res = await fetch('/api/stories/'+storyId);
+        const story = await res.json();
+        const div = document.getElementById('storyContent');
+        const header = document.getElementById('storyHeader');
+
+        header.innerHTML = '<a href="/" style="color:#e94560">&larr; Back to Browse</a>'+
+            '<h2 style="margin:1rem 0">'+story.folder_name+' ('+story.year+' '+story.month+')</h2>'+
+            '<div class="flex" style="gap:0.5rem;margin-bottom:0.5rem">'+
+            '<a href="/api/stories/'+story.id+'/download" class="btn btn-primary">Download ZIP</a></div>';
+
+        div.innerHTML = story.pages.map(p => {
+            return '<div class="card">'+
+                '<h4 style="margin-bottom:0.5rem;color:#666">Page '+p.page_number+' ('+p.file_name+')</h4>'+
+                '<div style="font-size:1.05rem;line-height:1.8;background:#fafafa;padding:1rem;border-radius:6px;font-family:\'Noto Sans Telugu\',sans-serif;white-space:pre-wrap">'+p.content+'</div></div>';
+        }).join('');
+    }
+
+    loadStory();
+    </script>
+</body>
+</html>
