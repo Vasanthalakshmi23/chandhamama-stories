@@ -124,7 +124,7 @@ def startup_event() -> None:
         conn = psycopg2.connect(get_connection_dsn())
         try:
             ensure_schema(conn)
-            seed_dataset_if_needed(conn)
+            #seed_dataset_if_needed(conn)
         finally:
             conn.close()
     except Exception as exc:
